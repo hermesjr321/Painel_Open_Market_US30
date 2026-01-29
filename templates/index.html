@@ -1,76 +1,77 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>US30 Dashboard Pré-Market</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #111;
-            color: white;
-            padding: 20px;
-        }
-
-        h1 {
-            color: gold;
-        }
-
-        .card {
-            background: #222;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        td, th {
-            padding: 8px;
-            border-bottom: 1px solid #444;
-        }
-
-        .green { color: lime; }
-        .red { color: red; }
-    </style>
+  <title>US30 Pré-Market Dashboard</title>
+  <style>
+    body { background:#111; color:white; font-family:Arial; padding:20px; }
+    h1 { color:gold; }
+    .card { background:#222; padding:15px; margin:15px 0; border-radius:10px; }
+    table { width:100%; border-collapse:collapse; }
+    td,th { padding:6px; border-bottom:1px solid #444; }
+    .green { color:lime; }
+    .red { color:red; }
+  </style>
 </head>
-
 <body>
 
-<h1>📊 Dashboard Pré-Abertura US30 (9:30 NY)</h1>
-
-{% for asset, tfdata in data.items() %}
+<h1>📊 US30 Institutional Pre-Market Dashboard</h1>
 
 <div class="card">
-    <h2>{{ asset }}</h2>
-
-    <table>
-        <tr>
-            <th>Timeframe</th>
-            <th>Preço</th>
-            <th>Variação</th>
-        </tr>
-
-        {% for tf, info in tfdata.items() %}
-        <tr>
-            <td>{{ tf }}</td>
-            <td>{{ info.price }}</td>
-
-            {% if info.change > 0 %}
-                <td class="green">+{{ info.change }}%</td>
-            {% elif info.change < 0 %}
-                <td class="red">{{ info.change }}%</td>
-            {% else %}
-                <td>0%</td>
-            {% endif %}
-        </tr>
-        {% endfor %}
-    </table>
+  <h2>📌 GAP DO DIA</h2>
+  {% for k,v in gaps.items() %}
+    <p>{{ k }}: <b>{{ v }}%</b></p>
+  {% endfor %}
 </div>
 
+<div class="card">
+  <h2>🏢 Dow Breadth</h2>
+  <p>Positivas: {{ breadth[0] }} | Negativas: {{ breadth[1] }}</p>
+</div>
+
+<div class="card">
+  <h2>🎯 Volume Profile</h2>
+  <p>POC: {{ poc }} | Preço Atual: {{ current }}</p>
+</div>
+
+<div class="card">
+  <h2>🌙 Overnight Structure YM</h2>
+  <p>High: {{ overnight.high }}</p>
+  <p>Low: {{ overnight.low }}</p>
+  <p>Mid: {{ overnight.mid }}</p>
+  <p>Range: {{ overnight.range }}</p>
+  <p>Preço Atual: {{ overnight.current }}</p>
+  <p>Posição no Range: {{ overnight.position }}%</p>
+</div>
+
+{% for asset,tfdata in assets.items() %}
+<div class="card">
+  <h2>{{ asset }}</h2>
+  <table>
+    <tr>
+      <th>TF</th><th>Preço</th><th>%</th><th>Volume</th><th>Média</th><th>Ratio</th>
+    </tr>
+
+    {% for tf,info in tfdata.items() %}
+    <tr>
+      <td>{{ tf }}</td>
+      <td>{{ info.price }}</td>
+
+      {% if info.change > 0 %}
+        <td class="green">+{{ info.change }}%</td>
+      {% elif info.change < 0 %}
+        <td class="red">{{ info.change }}%</td>
+      {% else %}
+        <td>0%</td>
+      {% endif %}
+
+      <td>{{ info.volume }}</td>
+      <td>{{ info.avg_volume }}</td>
+      <td>{{ info.vol_ratio }}x</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
 {% endfor %}
 
 </body>
 </html>
-
