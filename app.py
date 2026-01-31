@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template
 import yfinance as yf
 import pandas as pd
+import time
 
 app = Flask(__name__)
 
@@ -14,70 +15,61 @@ US100  = "^IXIC"
 VIX    = "^VIX"
 DXY    = "DX-Y.NYB"
 
+TIMEFRAMES = ["1m","5m","15m","30m","1h","4h","1d"]
+
 # =========================
-# MULTI TIMEFRAME PRICE
+# CACHE CONFIG
+# =========================
+CACHE = {}
+CACHE_TIME = 300  # 5 minutos
+
+# =========================
+# FUNÇÃO MULTI-TF
 # =========================
 def fetch_multitf(ticker):
-    tfs = {
-        "1m": "1d",
-        "5m": "1d",
-        "15m": "1d",
-        "30m": "5d",
-        "1h": "5d",
-        "4h": "1mo",
-        "1d": "6mo"
-    }
-
-    data = {}
-    for tf, period in tfs.items():
+    out = {}
+    for tf in TIMEFRAMES:
         try:
-            df = yf.download(ticker, period=period, interval=tf, progress=False)
+            df = yf.download(ticker, period="5d", interval=tf, progress=False)
             if df.empty:
-                data[tf] = None
+                out[tf] = None
             else:
                 price = float(df["Close"].iloc[-1])
-                change = float((df["Close"].iloc[-1] - df["Close"].iloc[-2]) / df["Close"].iloc[-2] * 100)
-                data[tf] = {"price": round(price, 2), "pct": round(change, 2)}
+                out[tf] = round(price, 2)
         except:
-            data[tf] = None
-
-    return data
+            out[tf] = None
+    return out
 
 # =========================
-# GAP %
+# GAP DO DIA
 # =========================
 def calc_gap(ticker):
     try:
         df = yf.download(ticker, period="5d", interval="1d", progress=False)
-        o = float(df.iloc[-1]["Open"])
-        c = float(df.iloc[-2]["Close"])
-        return round(((o - c) / c) * 100, 2)
+        open_today = df.iloc[-1]["Open"]
+        close_yest = df.iloc[-2]["Close"]
+        return round(((open_today - close_yest) / close_yest) * 100, 3)
     except:
         return 0.0
 
 # =========================
-# DOW30 BREADTH
+# VOLUME + MÉDIA
 # =========================
-dow_components = [
-    "MMM","AXP","AMGN","AAPL","BA","CAT","CVX","CSCO","KO","DOW","GS",
-    "HD","HON","IBM","INTC","JNJ","JPM","MCD","MRK","MSFT","NKE","PG",
-    "CRM","TRV","UNH","VZ","V","AMZN","WMT","DIS"
-]
+def volume_status():
+    try:
+        df = yf.download(US30, period="1d", interval="30m", progress=False)
+        current_vol = int(df["Volume"].sum())
 
-def dow_breadth():
-    pos = 0
-    neg = 0
-    for t in dow_components:
-        try:
-            df = yf.download(t, period="2d", interval="1d", progress=False)
-            var = float((df["Close"].iloc[-1] - df["Open"].iloc[-1]) / df["Open"].iloc[-1] * 100)
-            if var > 0:
-                pos += 1
-            else:
-                neg += 1
-        except:
-            pass
-    return {"positive": pos, "negative": neg}
+        df5 = yf.download(US30, period="5d", interval="30m", progress=False)
+        df5.index = pd.to_datetime(df5.index)
+        daily = df5.groupby(df5.index.date)["Volume"].sum()
+        avg_vol = int(daily.mean())
+
+        ratio = round(current_vol / avg_vol, 2) if avg_vol > 0 else 0
+
+        return current_vol, avg_vol, ratio
+    except:
+        return 0, 0, 0
 
 # =========================
 # VOLUME PROFILE POC
@@ -86,12 +78,16 @@ def volume_profile_poc():
     try:
         df = yf.download(US30, period="1d", interval="15m", progress=False).dropna()
         df["price"] = ((df["High"] + df["Low"]) / 2).round(0)
+
         prof = df.groupby("price")["Volume"].sum()
-        poc = int(prof.idxmax())
-        current = float(df["Close"].iloc[-1])
-        return poc, round(current, 2)
+        poc_price = int(prof.idxmax())
+        poc_vol = int(prof.max())
+
+        current_price = float(df["Close"].iloc[-1])
+
+        return poc_price, poc_vol, round(current_price, 2)
     except:
-        return 0, 0
+        return 0, 0, 0
 
 # =========================
 # OVERNIGHT STRUCTURE YM
@@ -99,32 +95,33 @@ def volume_profile_poc():
 def overnight_structure():
     try:
         df = yf.download(YM_FUT, period="1d", interval="30m", progress=False)
-        high = float(df["High"].max())
-        low = float(df["Low"].min())
-        mid = (high + low) / 2
+
+        overnight = df.between_time("00:00", "09:29")
+
+        high = float(overnight["High"].max())
+        low  = float(overnight["Low"].min())
+        mid  = round((high + low) / 2, 2)
+
         current = float(df["Close"].iloc[-1])
-        rng = high - low
-        pos = ((current - low) / rng) * 100 if rng != 0 else 0
+        rng = round(high - low, 2)
+
+        pos = round(((current - low) / rng) * 100, 2) if rng > 0 else 0
 
         return {
             "high": round(high, 2),
             "low": round(low, 2),
-            "mid": round(mid, 2),
-            "range": round(rng, 2),
+            "mid": mid,
+            "range": rng,
             "current": round(current, 2),
-            "position": round(pos, 1)
+            "position": pos
         }
     except:
         return {}
 
 # =========================
-# ROUTE
+# LOAD ALL DATA
 # =========================
-@app.route("/", methods=["GET", "HEAD"])
-def index():
-
-    if request.method == "HEAD":
-        return "", 200
+def load_all_data():
 
     assets = {
         "US30": fetch_multitf(US30),
@@ -136,26 +133,58 @@ def index():
     }
 
     gaps = {
-        "US30 Index Gap %": calc_gap(US30),
-        "YM Futures Gap %": calc_gap(YM_FUT)
+        "US30 Gap %": calc_gap(US30),
+        "YM Gap %": calc_gap(YM_FUT)
     }
 
-    breadth = dow_breadth()
-    poc, current = volume_profile_poc()
+    vol_now, vol_avg, vol_ratio = volume_status()
+
+    poc_price, poc_vol, current_price = volume_profile_poc()
+
     overnight = overnight_structure()
+
+    return {
+        "assets": assets,
+        "gaps": gaps,
+        "volume": {
+            "now": vol_now,
+            "avg": vol_avg,
+            "ratio": vol_ratio
+        },
+        "poc": {
+            "price": poc_price,
+            "volume": poc_vol,
+            "current": current_price
+        },
+        "overnight": overnight
+    }
+
+# =========================
+# ROUTE PRINCIPAL
+# =========================
+@app.route("/")
+def index():
+
+    now = time.time()
+
+    if "data" not in CACHE or now - CACHE["time"] > CACHE_TIME:
+        print("🔄 Atualizando dados...")
+        CACHE["data"] = load_all_data()
+        CACHE["time"] = now
+
+    data = CACHE["data"]
 
     return render_template(
         "index.html",
-        assets=assets,
-        gaps=gaps,
-        breadth=breadth,
-        poc=poc,
-        current=current,
-        overnight=overnight
+        assets=data["assets"],
+        gaps=data["gaps"],
+        volume=data["volume"],
+        poc=data["poc"],
+        overnight=data["overnight"]
     )
 
 # =========================
-# RUN LOCAL
+# START SERVER
 # =========================
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=8080)
