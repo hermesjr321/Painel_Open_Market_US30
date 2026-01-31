@@ -1,40 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>US30 Institutional Dashboard</title>
+    <title>US30 Pre-Market Dashboard</title>
+    <style>
+        body { font-family: Arial; background: #111; color: white; padding: 20px; }
+        h1 { color: cyan; }
+        .box { background: #222; padding: 15px; margin: 15px 0; border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { padding: 8px; border: 1px solid #333; text-align: center; }
+    </style>
 </head>
 <body>
-    <h1>📊 US30 Pre-Market Dashboard</h1>
 
-    <h2>Multi-TF Prices</h2>
+<h1>📊 Dashboard Pré-Abertura NY (US30)</h1>
+
+<div class="box">
+    <h2>📌 Preços Multi-Timeframe</h2>
     {% for asset, tfs in assets.items() %}
         <h3>{{ asset }}</h3>
-        <ul>
-        {% for tf, val in tfs.items() %}
-            {% if val %}
-                <li>{{ tf }} → {{ val.price }} ({{ val.pct }}%)</li>
-            {% else %}
-                <li>{{ tf }} → no data</li>
-            {% endif %}
-        {% endfor %}
-        </ul>
+        <table>
+            <tr>
+                {% for tf,val in tfs.items() %}
+                    <th>{{ tf }}</th>
+                {% endfor %}
+            </tr>
+            <tr>
+                {% for tf,val in tfs.items() %}
+                    <td>{{ val }}</td>
+                {% endfor %}
+            </tr>
+        </table>
     {% endfor %}
+</div>
 
-    <h2>Gaps</h2>
-    <ul>
-        {% for k,v in gaps.items() %}
-            <li>{{ k }}: {{ v }}%</li>
-        {% endfor %}
-    </ul>
+<div class="box">
+    <h2>📈 Gap do Dia</h2>
+    <p>US30 Gap: {{ gaps["US30 Gap %"] }}%</p>
+    <p>YM Futures Gap: {{ gaps["YM Gap %"] }}%</p>
+</div>
 
-    <h2>Dow Breadth</h2>
-    <p>Positive: {{ breadth.positive }} | Negative: {{ breadth.negative }}</p>
+<div class="box">
+    <h2>🔔 Volume US30</h2>
+    <p>Volume Atual: {{ volume["now"] }}</p>
+    <p>Média 5 dias: {{ volume["avg"] }}</p>
+    <p>Relação: {{ volume["ratio"] }}x</p>
+</div>
 
-    <h2>POC Volume Profile</h2>
-    <p>POC Price: {{ poc }} | Current Price: {{ current }}</p>
+<div class="box">
+    <h2>🎯 Volume Profile POC</h2>
+    <p>POC Price: {{ poc["price"] }}</p>
+    <p>Volume no POC: {{ poc["volume"] }}</p>
+    <p>Preço Atual: {{ poc["current"] }}</p>
+</div>
 
-    <h2>Overnight YM Structure</h2>
-    <pre>{{ overnight }}</pre>
+<div class="box">
+    <h2>🌙 Overnight Structure YM</h2>
+    <p>High: {{ overnight["high"] }}</p>
+    <p>Low: {{ overnight["low"] }}</p>
+    <p>Midpoint: {{ overnight["mid"] }}</p>
+    <p>Range Total: {{ overnight["range"] }}</p>
+    <p>Preço Atual: {{ overnight["current"] }}</p>
+    <p>Posição no Range: {{ overnight["position"] }}%</p>
+</div>
 
 </body>
 </html>
